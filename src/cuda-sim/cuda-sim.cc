@@ -1463,7 +1463,11 @@ void function_info::ptx_jit_config(
   std::string filename_c(filename + "_c");
   snprintf(buff, 1024, "c++filt %s > %s", get_name().c_str(),
            filename_c.c_str());
-  assert(system(buff) != NULL);
+  if (system(buff) != 0) {
+    printf("WARNING: Failed to execute c++filt\n");
+    printf("Problematic call: %s", buff);
+    abort();
+  }
   FILE *fp = fopen(filename_c.c_str(), "r");
   fgets(buff, 1024, fp);
   fclose(fp);

@@ -151,8 +151,25 @@ void gpgpu_functional_sim_config::reg_options(class OptionParser *opp) {
                          &checkpoint_insn_Y, " resume from which CTA ", "0");
 
   option_parser_register(
+      opp, "-gpgpu_ptx_convert_to_coasm", OPT_BOOL, &m_ptx_convert_to_coasm,
+      "Convert ptx to co-asm", "0");
+
+  option_parser_register(
+      opp, "-gpgpu_ptx_convert_to_coasm_file", OPT_CSTR, &g_ptx_convert_to_coasm_file,
+      "Converted coasm output file", "ptx.asm");
+
+  option_parser_register(
+      opp, "-gpgpu_ptx_convert_to_cuda", OPT_BOOL, &m_ptx_convert_to_cuda,
+      "Convert SASS (native ISA) to ptxplus and run ptxplus", "0");
+
+  option_parser_register(
+      opp, "-gpgpu_ptx_convert_to_cuda_file", OPT_CSTR, &g_ptx_convert_to_cuda_file,
+      "Converted cuda output file", "ptx.cu");
+
+  option_parser_register(
       opp, "-gpgpu_ptx_convert_to_ptxplus", OPT_BOOL, &m_ptx_convert_to_ptxplus,
       "Convert SASS (native ISA) to ptxplus and run ptxplus", "0");
+
   option_parser_register(opp, "-gpgpu_ptx_force_max_capability", OPT_UINT32,
                          &m_ptx_force_max_capability,
                          "Force maximum compute capability", "0");
@@ -200,6 +217,14 @@ gpgpu_t::gpgpu_t(const gpgpu_functional_sim_config &config, gpgpu_context *ctx)
   if (m_function_model_config.get_ptx_inst_debug_to_file() != 0)
     ptx_inst_debug_file =
         fopen(m_function_model_config.get_ptx_inst_debug_file(), "w");
+
+  if (m_function_model_config.convert_to_coasm() != 0)
+    ptx_convert_to_coasm_file =
+        fopen(m_function_model_config.get_ptx_convert_to_coasm_file(), "w");
+
+  if (m_function_model_config.convert_to_cuda() != 0)
+    ptx_convert_to_cuda_file =
+        fopen(m_function_model_config.get_ptx_convert_to_cuda_file(), "w");
 
   gpu_sim_cycle = 0;
   gpu_tot_sim_cycle = 0;

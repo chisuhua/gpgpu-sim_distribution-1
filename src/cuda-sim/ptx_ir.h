@@ -946,6 +946,7 @@ class ptx_instruction : public warp_inst_t {
 
   void print_insn() const;
   virtual void print_insn(FILE *fp) const;
+  virtual void print_coasm(FILE *fp) const;
   std::string to_string() const;
   unsigned inst_size() const { return m_inst_size; }
   unsigned uid() const { return m_uid; }
@@ -1294,6 +1295,8 @@ class function_info {
   void find_ipostdominators();
   void print_ipostdominators();
   void do_pdom();  // function to call pdom analysis
+  void gen_coasm(FILE* fp);  // function to convert ptx to coasm
+  void gen_cuda(FILE* fp);   // function to convert ptx to cuda
 
   unsigned get_num_reconvergence_pairs();
 

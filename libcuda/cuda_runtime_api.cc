@@ -969,6 +969,13 @@ cudaError_t cudaLaunchInternal(const char *hostFun,
   class memory_space *global_mem;
   global_mem = gpu->get_global_memory();
 
+  if (gpu->get_config().convert_to_coasm()) {
+    kernel_func_info->gen_coasm(gpu->get_ptx_convert_to_coasm_file());
+  }
+  if (gpu->get_config().convert_to_cuda()) {
+    kernel_func_info->gen_cuda(gpu->get_ptx_convert_to_cuda_file());
+  }
+
   if (gpu->resume_option == 1 && (grid->get_uid() == gpu->resume_kernel)) {
     char f1name[2048];
     snprintf(f1name, 2048, "checkpoint_files/global_mem_%d.txt",
@@ -3498,6 +3505,7 @@ void gpgpu_context::cuobjdumpParseBinary(unsigned int handle) {
                            context->get_device()->get_gpgpu());
   api->load_constants(symtab, STATIC_ALLOC_LIMIT,
                       context->get_device()->get_gpgpu());
+  // symtab->dump();
   for (itr_m = api->version_filename.begin();
        itr_m != api->version_filename.end(); itr_m++) {
     std::set<std::string>::iterator itr_s;
@@ -4086,9 +4094,11 @@ kernel_info_t *cuda_runtime_api::gpgpu_cuda_ptx_sim_init_grid(
   fflush(stdout);
 
   if (g_debug_execution >= 4) {
+      /*
     entry->ptx_jit_config(g_mallocPtr_Size, result->get_param_memory(),
                           (gpgpu_t *)context->get_device()->get_gpgpu(),
                           gridDim, blockDim);
+                          */
   }
 
   return result;

@@ -41,6 +41,7 @@ typedef void *yyscan_t;
 
 #include "../../libcuda/gpgpu_context.h"
 #include "cuda-sim.h"
+#include "instructions_codegen.h"
 
 #define STR_SIZE 1024
 
@@ -638,6 +639,61 @@ void function_info::do_pdom() {
   fflush(stdout);
   m_assembled = true;
 }
+
+void function_info::gen_coasm(FILE *fp) {
+  std::vector<basic_block_t *>::iterator bb_itr;
+  std::vector<basic_block_t *>::iterator bb_target_itr;
+  basic_block_t *exit_bb = m_basic_blocks.back();
+
+  // start from first basic block, which we know is the entry point
+  bb_itr = m_basic_blocks.begin();
+  for (bb_itr = m_basic_blocks.begin(); bb_itr != m_basic_blocks.end();
+       bb_itr++) {
+    if ((*bb_itr)->ptx_begin)
+      fprintf(fp, "bb_%02u:\n", (*bb_itr)->bb_id);
+
+    if ((*bb_itr)->is_exit)  // reached last basic block, no successors to link
+      continue;
+
+    unsigned insn_addr = (*bb_itr)->ptx_begin->get_m_instr_mem_index();
+    while (insn_addr <= (*bb_itr)->ptx_end->get_m_instr_mem_index()) {
+      ptx_instruction *pI = m_instr_mem[insn_addr];
+      insn_addr += 1;
+      if (pI == NULL)
+        continue;  // temporary solution for variable size instructions
+      fprintf(fp, "\t\t");
+      if (pI->get_opcode() == BRA_OP) {
+        // find successor and link that basic_block to this one
+        operand_info &target = pI->dst();  // get operand, e.g. target name
+        unsigned addr = labels[target.name()];
+        ptx_instruction *target_pI = m_instr_mem[addr];
+        basic_block_t *target_bb = target_pI->get_bb();
+        if (pI->has_pred()) {
+            const operand_info &p = pI->get_pred();
+            fprintf(fp, "\%p%u", p.reg_num());
+        }
+        fprintf(fp, "bra  bb_%02u", target_bb->bb_id);
+      } else {
+        pI->print_coasm(fp);
+      }
+      fprintf(fp, "\n");
+    }
+  }
+
+  printf("GPGPU-Sim PTX: ... done gen asm for \'%s\'.\n",
+         m_name.c_str());
+}
+
+void function_info::gen_cuda(FILE *fp) {
+  for (unsigned ii = 0; ii < m_n; ii += m_instr_mem[ii]->inst_size()) {
+    ptx_instruction *pI = m_instr_mem[ii];
+    pI->pre_decode();
+  }
+  printf("GPGPU-Sim PTX: ... done gen asm for \'%s\'.\n",
+         m_name.c_str());
+}
+
+
 void intersect(std::set<int> &A, const std::set<int> &B) {
   // return intersection of A and B in A
   for (std::set<int>::iterator a = A.begin(); a != A.end();) {
@@ -1147,7 +1203,7 @@ static std::list<operand_info> check_operands(
     const std::list<operand_info> &operands, gpgpu_context *ctx) {
   static int g_warn_literal_operands_two_type_inst;
   if ((opcode == CVT_OP) || (opcode == SET_OP) || (opcode == SLCT_OP) ||
-      (opcode == TEX_OP) || (opcode == MMA_OP) || (opcode == DP4A_OP) || 
+      (opcode == TEX_OP) || (opcode == MMA_OP) || (opcode == DP4A_OP) ||
       (opcode == VMIN_OP) || (opcode == VMAX_OP) ) {
     // just make sure these do not have have const operands...
     if (!g_warn_literal_operands_two_type_inst) {
@@ -1459,6 +1515,42 @@ void ptx_instruction::print_insn() const {
 
 void ptx_instruction::print_insn(FILE *fp) const {
   fprintf(fp, "%s", to_string().c_str());
+}
+
+void ptx_instruction::print_coasm(FILE *fp) const {
+  switch (get_opcode()) {
+    case LD_OP:
+        ld_impl_coasm(this, fp);
+        break;
+    case MOV_OP:
+        mov_impl_coasm(this, fp);
+        break;
+    case MUL_OP:
+        mul_impl_coasm(this, fp);
+        break;
+    case ADD_OP:
+        add_impl_coasm(this, fp);
+        break;
+    case SETP_OP:
+        add_impl_coasm(this, fp);
+        break;
+#if 0
+#define OP_DEF(OP, FUNC, STR, DST, CLASSIFICATION) \
+  case OP:                                         \
+    FUNC##_coasm(this, fp);                            \
+    break;
+#define OP_W_DEF(OP, FUNC, STR, DST, CLASSIFICATION) \
+  case OP:                                           \
+    FUNC##_coasm(this, fp);                      \
+    break;
+#include "opcodes.def"
+#undef OP_DEF
+#undef OP_W_DEF
+#endif
+  default:
+    fprintf(fp, "%s", m_source.c_str());
+    break;
+  }
 }
 
 std::string ptx_instruction::to_string() const {
