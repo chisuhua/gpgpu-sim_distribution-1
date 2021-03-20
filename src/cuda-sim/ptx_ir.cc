@@ -668,11 +668,11 @@ void function_info::gen_coasm(FILE *fp) {
         unsigned addr = labels[target.name()];
         ptx_instruction *target_pI = m_instr_mem[addr];
         basic_block_t *target_bb = target_pI->get_bb();
+        fprintf(fp, "bra  bb_%02u", target_bb->bb_id);
         if (pI->has_pred()) {
             const operand_info &p = pI->get_pred();
-            fprintf(fp, "\%p%u", p.reg_num());
+            fprintf(fp, ",\tp%u", p.reg_num());
         }
-        fprintf(fp, "bra  bb_%02u", target_bb->bb_id);
       } else {
         pI->print_coasm(fp);
       }
@@ -1532,7 +1532,19 @@ void ptx_instruction::print_coasm(FILE *fp) const {
         add_impl_coasm(this, fp);
         break;
     case SETP_OP:
-        add_impl_coasm(this, fp);
+        setp_impl_coasm(this, fp);
+        break;
+    case NOT_OP:
+        not_impl_coasm(this, fp);
+        break;
+    case CVT_OP:
+        cvt_impl_coasm(this, fp);
+        break;
+    case SHL_OP:
+        shl_impl_coasm(this, fp);
+        break;
+    case ST_OP:
+        st_impl_coasm(this, fp);
         break;
 #if 0
 #define OP_DEF(OP, FUNC, STR, DST, CLASSIFICATION) \

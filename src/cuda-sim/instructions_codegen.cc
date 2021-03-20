@@ -4,17 +4,24 @@ typedef void *yyscan_t;
 class ptx_recognizer;
 #include "ptx.tab.h"
 
-void print_src(const operand_info &src, FILE* fp) {
+void print_src(const operand_info &src, FILE* fp, uint32_t size=1) {
   if (src.is_builtin())
       fprintf(fp, "\%build_in%u", src.get_int());
   else if (src.is_literal())
       fprintf(fp, "%u", src.get_literal_value());
-  else
+  else {
+    if (size == 1)
       fprintf(fp, "v%u", src.reg_num());
+    else
+      fprintf(fp, "v[%u,%u]", src.reg_num(), src.reg_num()+size-1);
+  }
 }
 
-void print_dst(const operand_info &dst, FILE* fp) {
-  fprintf(fp, "v%u", dst.reg_num());
+void print_dst(const operand_info &dst, FILE* fp, uint32_t size=1) {
+  if (size == 1)
+    fprintf(fp, "v%u", dst.reg_num());
+  else
+    fprintf(fp, "v[%u,%u]", dst.reg_num(), dst.reg_num()+size-1);
 }
 #if 0
 void abs_impl_coasm(const ptx_instruction *pI) {
@@ -194,7 +201,7 @@ void add_impl_coasm(const ptx_instruction *pI, FILE *fp) {
   // performs addition. Sets carry and overflow if needed.
   switch (i_type) {
     case S8_TYPE:
-      fprintf(fp, "t_add_s32_s8");
+      fprintf(fp, "v_add_s32_s8");
       // data.s64 = (src1_data.s64 & 0x0000000FF) + (src2_data.s64 & 0x0000000FF);
       // if (((src1_data.s64 & 0x80) - (src2_data.s64 & 0x80)) == 0) {
       //   overflow = ((src1_data.s64 & 0x80) - (data.s64 & 0x80)) == 0 ? 0 : 1;
@@ -202,7 +209,7 @@ void add_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       // carry = (data.u64 & 0x000000100) >> 8;
       break;
     case S16_TYPE:
-      fprintf(fp, "t_add_s32_s16");
+      fprintf(fp, "v_add_s32_s16");
       // data.s64 = (src1_data.s64 & 0x00000FFFF) + (src2_data.s64 & 0x00000FFFF);
       // if (((src1_data.s64 & 0x8000) - (src2_data.s64 & 0x8000)) == 0) {
       //   overflow =
@@ -211,7 +218,7 @@ void add_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       // carry = (data.u64 & 0x000010000) >> 16;
       break;
     case S32_TYPE:
-      fprintf(fp, "t_add_s32_s32");
+      fprintf(fp, "v_add_s32_s32");
       // data.s64 = (src1_data.s64 & 0x0FFFFFFFF) + (src2_data.s64 & 0x0FFFFFFFF);
       // if (((src1_data.s64 & 0x80000000) - (src2_data.s64 & 0x80000000)) == 0) {
       //   overflow = ((src1_data.s64 & 0x80000000) - (data.s64 & 0x80000000)) == 0
@@ -221,50 +228,47 @@ void add_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       // carry = (data.u64 & 0x100000000) >> 32;
       break;
     case S64_TYPE:
-      fprintf(fp, "t_add_s64_s64");
+      fprintf(fp, "v_add_s64_s64");
       // data.s64 = src1_data.s64 + src2_data.s64;
       break;
     case U8_TYPE:
-      fprintf(fp, "t_add_u32_u8");
+      fprintf(fp, "v_add_u32_u8");
       // data.u64 = (src1_data.u64 & 0xFF) + (src2_data.u64 & 0xFF);
       // carry = (data.u64 & 0x100) >> 8;
       break;
     case U16_TYPE:
-      fprintf(fp, "t_add_u32_u16");
+      fprintf(fp, "v_add_u32_u16");
       // data.u64 = (src1_data.u64 & 0xFFFF) + (src2_data.u64 & 0xFFFF);
       // carry = (data.u64 & 0x10000) >> 16;
       break;
     case U32_TYPE:
-      fprintf(fp, "t_add_u32_u32");
+      fprintf(fp, "v_add_u32_u32");
       // data.u64 = (src1_data.u64 & 0xFFFFFFFF) + (src2_data.u64 & 0xFFFFFFFF);
       // carry = (data.u64 & 0x100000000) >> 32;
       break;
     case U64_TYPE:
-      fprintf(fp, "t_add_u64_u64");
+      fprintf(fp, "v_add_u64_u64");
       // data.u64 = src1_data.u64 + src2_data.u64;
       break;
     case F16_TYPE:
-      fprintf(fp, "t_add_f16_f16");
+      fprintf(fp, "v_add_f16_f16");
       // data.f16 = src1_data.f16 + src2_data.f16;
       break;  // assert(0); break;
     case F32_TYPE:
-      fprintf(fp, "t_add_f32_f32");
+      fprintf(fp, "v_add_f32_f32");
       // data.f32 = src1_data.f32 + src2_data.f32;
       break;
     case F64_TYPE:
     case FF64_TYPE:
-      fprintf(fp, "t_add_f64_f64");
+      fprintf(fp, "v_add_f64_f64");
       // data.f64 = src1_data.f64 + src2_data.f64;
       break;
     default:
-      assert(0);
       break;
   }
-  // fesetround(orig_rm);
-  fprintf(fp, "\t,");
-  print_dst(dst, fp); fprintf(fp, "\t,");
-  print_src(src1, fp);fprintf(fp, "\t,");
-  print_src(src2, fp);
+  fprintf(fp, "\t"); print_dst(dst, fp);
+  fprintf(fp, "\t,"); print_src(src1, fp);
+  fprintf(fp, "\t,"); print_src(src2, fp);
   // thread->set_operand_value(dst, data, i_type, thread, pI, overflow, carry);
 }
 #if 0
@@ -1517,12 +1521,15 @@ void cos_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
 
   thread->set_operand_value(dst, d, i_type, thread, pI);
 }
+#endif
 
-ptx_reg_t chop(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-               int rounding_mode, int saturation_mode) {
+void chop(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+               int rounding_mode, int saturation_mode, FILE* fp) {
+      fprintf(fp, "_chop_b%u_b%u", to_width, from_width);
+  /*
   switch (to_width) {
     case 8:
-      x.mask_and(0, 0xFF);
+      // x.mask_and(0, 0xFF);
       break;
     case 16:
       x.mask_and(0, 0xFFFF);
@@ -1536,57 +1543,71 @@ ptx_reg_t chop(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
       assert(0);
   }
   return x;
+  */
 }
 
-ptx_reg_t sext(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-               int rounding_mode, int saturation_mode) {
-  x = chop(x, 0, from_width, 0, rounding_mode, saturation_mode);
+void sext(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+               int rounding_mode, int saturation_mode, FILE* fp) {
+  // x = chop(x, 0, from_width, 0, rounding_mode, saturation_mode);
+      fprintf(fp, "_sext_s%u_s%u", to_width, from_width);
+/*
   switch (from_width) {
     case 8:
-      if (x.get_bit(7)) x.mask_or(0xFFFFFFFF, 0xFFFFFF00);
+      fprintf(fp, "_sext_s32_s8");
+      // if (x.get_bit(7)) x.mask_or(0xFFFFFFFF, 0xFFFFFF00);
       break;
     case 16:
-      if (x.get_bit(15)) x.mask_or(0xFFFFFFFF, 0xFFFF0000);
+      fprintf(fp, "_sext_s32_s16");
+      // if (x.get_bit(15)) x.mask_or(0xFFFFFFFF, 0xFFFF0000);
       break;
     case 32:
-      if (x.get_bit(31)) x.mask_or(0xFFFFFFFF, 0x00000000);
+      fprintf(fp, "_sext_s32_s32");
+      // if (x.get_bit(31)) x.mask_or(0xFFFFFFFF, 0x00000000);
       break;
     case 64:
       break;
     default:
       assert(0);
   }
-  return x;
+*/
+  // return x;
 }
 
 // sign extend depending on the destination register size - hack to get
 // SobelFilter working in CUDA 4.2
-ptx_reg_t sexd(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-               int rounding_mode, int saturation_mode) {
-  x = chop(x, 0, from_width, 0, rounding_mode, saturation_mode);
+void sexd(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+               int rounding_mode, int saturation_mode, FILE* fp) {
+  // x = chop(x, 0, from_width, 0, rounding_mode, saturation_mode);
+      fprintf(fp, "_sext_s%u_s%u", to_width, from_width);
+  /*
   switch (to_width) {
     case 8:
-      if (x.get_bit(7)) x.mask_or(0xFFFFFFFF, 0xFFFFFF00);
+      fprintf(fp, "_sext_s32_s8");
+      // if (x.get_bit(7)) x.mask_or(0xFFFFFFFF, 0xFFFFFF00);
       break;
     case 16:
-      if (x.get_bit(15)) x.mask_or(0xFFFFFFFF, 0xFFFF0000);
+      fprintf(fp, "_sext_s32_s16");
+      // if (x.get_bit(15)) x.mask_or(0xFFFFFFFF, 0xFFFF0000);
       break;
     case 32:
-      if (x.get_bit(31)) x.mask_or(0xFFFFFFFF, 0x00000000);
+      fprintf(fp, "_sext_s32_s32");
+      // if (x.get_bit(31)) x.mask_or(0xFFFFFFFF, 0x00000000);
       break;
     case 64:
       break;
     default:
       assert(0);
   }
-  return x;
+  */
+  // return x;
 }
 
-ptx_reg_t zext(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-               int rounding_mode, int saturation_mode) {
-  return chop(x, 0, from_width, 0, rounding_mode, saturation_mode);
+void zext(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+               int rounding_mode, int saturation_mode, FILE* fp) {
+  // return chop(x, 0, from_width, 0, rounding_mode, saturation_mode);
+  fprintf(fp, "_zext_b%u_b%u", to_width, from_width);
 }
-
+/*
 int saturatei(int a, int max, int min) {
   if (a > max)
     a = max;
@@ -1599,31 +1620,41 @@ unsigned int saturatei(unsigned int a, unsigned int max) {
   if (a > max) a = max;
   return a;
 }
+*/
 
-ptx_reg_t f2x(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-              int rounding_mode, int saturation_mode) {
-  half mytemp;
-  half_float::half tmp_h;
+void f2x(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+              int rounding_mode, int saturation_mode, FILE *fp) {
+  // half mytemp;
+  // half_float::half tmp_h;
   // assert( from_width == 32);
+  //
+  if (to_sign == 1)   // convert to 64-bit number first?
+    fprintf(fp, "_f2x_s%u_f%u", to_width, from_width);
+  else
+    fprintf(fp, "_f2x_u%u_f%u", to_width, from_width);
 
   enum cudaRoundMode mode = cudaRoundZero;
   switch (rounding_mode) {
     case RZI_OPTION:
-      mode = cudaRoundZero;
+      fprintf(fp, "_rzi");
+      // mode = cudaRoundZero;
       break;
     case RNI_OPTION:
-      mode = cudaRoundNearest;
+      fprintf(fp, "_rni");
+      // mode = cudaRoundNearest;
       break;
     case RMI_OPTION:
-      mode = cudaRoundMinInf;
+      fprintf(fp, "_rmi");
+      // mode = cudaRoundMinInf;
       break;
     case RPI_OPTION:
-      mode = cudaRoundPosInf;
+      fprintf(fp, "_rpi");
+      // mode = cudaRoundPosInf;
       break;
     default:
       break;
   }
-
+/*
   ptx_reg_t y;
   if (to_sign == 1) {  // convert to 64-bit number first?
     int tmp = cuda_math::float2int(x.f32, mode);
@@ -1690,8 +1721,9 @@ ptx_reg_t f2x(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
     }
   }
   return y;
+  */
 }
-
+/*
 double saturated2i(double a, double max, double min) {
   if (a > max)
     a = max;
@@ -1699,30 +1731,40 @@ double saturated2i(double a, double max, double min) {
     a = min;
   return a;
 }
+*/
 
-ptx_reg_t d2x(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-              int rounding_mode, int saturation_mode) {
+void d2x(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+              int rounding_mode, int saturation_mode, FILE *fp) {
   assert(from_width == 64);
+
+  if (to_sign == 1)   // convert to 64-bit number first?
+    fprintf(fp, "_d2x_s%u_d%u", to_width, from_width);
+  else
+    fprintf(fp, "_d2x_u%u_d%u", to_width, from_width);
 
   double tmp;
   switch (rounding_mode) {
     case RZI_OPTION:
-      tmp = trunc(x.f64);
+      fprintf(fp, "_rzi");
+      // tmp = trunc(x.f64);
       break;
     case RNI_OPTION:
-      tmp = nearbyint(x.f64);
+      fprintf(fp, "_rni");
+      // tmp = nearbyint(x.f64);
       break;
     case RMI_OPTION:
-      tmp = floor(x.f64);
+      fprintf(fp, "_rmi");
+      // tmp = floor(x.f64);
       break;
     case RPI_OPTION:
-      tmp = ceil(x.f64);
+      fprintf(fp, "_rpi");
+      // tmp = ceil(x.f64);
       break;
     default:
-      tmp = x.f64;
+      // tmp = x.f64;
       break;
   }
-
+/*
   ptx_reg_t y;
   if (to_sign == 1) {
     tmp = saturated2i(tmp, ((1 << (to_width - 1)) - 1), (1 << (to_width - 1)));
@@ -1779,15 +1821,14 @@ ptx_reg_t d2x(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
     }
   }
   return y;
+  */
 }
 
-ptx_reg_t s2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-              int rounding_mode, int saturation_mode) {
-  ptx_reg_t y;
-
+void s2f(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+              int rounding_mode, int saturation_mode, FILE *fp) {
+  // ptx_reg_t y;
   if (from_width < 64) {  // 32-bit conversion
-    y = sext(x, from_width, 32, 0, rounding_mode, saturation_mode);
-
+    // y = sext(x, from_width, 32, 0, rounding_mode, saturation_mode);
     switch (to_width) {
       case 16:
         assert(0);
@@ -1795,23 +1836,28 @@ ptx_reg_t s2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
       case 32:
         switch (rounding_mode) {
           case RZ_OPTION:
-            y.f32 = cuda_math::__int2float_rz(y.s32);
+            fprintf(fp, "_s2f_f%u_s%u_rz", to_width, from_width);
+            // y.f32 = cuda_math::__int2float_rz(y.s32);
             break;
           case RN_OPTION:
-            y.f32 = cuda_math::__int2float_rn(y.s32);
+            fprintf(fp, "_s2f_f%u_s%u_rn", to_width, from_width);
+            // y.f32 = cuda_math::__int2float_rn(y.s32);
             break;
           case RM_OPTION:
-            y.f32 = cuda_math::__int2float_rd(y.s32);
+            fprintf(fp, "_s2f_f%u_s%u_rm", to_width, from_width);
+            // y.f32 = cuda_math::__int2float_rd(y.s32);
             break;
           case RP_OPTION:
-            y.f32 = cuda_math::__int2float_ru(y.s32);
+            fprintf(fp, "_s2f_f%u_s%u_rp", to_width, from_width);
+            // y.f32 = cuda_math::__int2float_ru(y.s32);
             break;
           default:
             break;
         }
         break;
       case 64:
-        y.f64 = y.s32;
+        fprintf(fp, "_s2f_f%u_s%u", to_width, from_width);
+        // y.f64 = y.s32;
         break;  // no rounding needed
       default:
         assert(0);
@@ -1825,23 +1871,28 @@ ptx_reg_t s2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
       case 32:
         switch (rounding_mode) {
           case RZ_OPTION:
-            y.f32 = cuda_math::__ll2float_rz(y.s64);
+            fprintf(fp, "_s2f_f%u_s%u_rz", to_width, from_width);
+            // y.f32 = cuda_math::__ll2float_rz(y.s64);
             break;
           case RN_OPTION:
-            y.f32 = cuda_math::__ll2float_rn(y.s64);
+            fprintf(fp, "_s2f_f%u_s%u_rn", to_width, from_width);
+            // y.f32 = cuda_math::__ll2float_rn(y.s64);
             break;
           case RM_OPTION:
-            y.f32 = cuda_math::__ll2float_rd(y.s64);
+            fprintf(fp, "_s2f_f%u_s%u_rm", to_width, from_width);
+            // y.f32 = cuda_math::__ll2float_rd(y.s64);
             break;
           case RP_OPTION:
-            y.f32 = cuda_math::__ll2float_ru(y.s64);
+            fprintf(fp, "_s2f_f%u_s%u_rm", to_width, from_width);
+            // y.f32 = cuda_math::__ll2float_ru(y.s64);
             break;
           default:
             break;
         }
         break;
       case 64:
-        y.f64 = y.s64;
+        fprintf(fp, "_s2f_f%u_s%u_rm", to_width, from_width);
+        // y.f64 = y.s64;
         break;  // no internal implementation found
       default:
         assert(0);
@@ -1850,15 +1901,15 @@ ptx_reg_t s2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
   }
 
   // saturating an integer to 1 or 0?
-  return y;
+  // return y;
 }
 
-ptx_reg_t u2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-              int rounding_mode, int saturation_mode) {
-  ptx_reg_t y;
+void u2f(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+              int rounding_mode, int saturation_mode, FILE *fp) {
+  // ptx_reg_t y;
 
   if (from_width < 64) {  // 32-bit conversion
-    y = zext(x, from_width, 32, 0, rounding_mode, saturation_mode);
+    // y = zext(x, from_width, 32, 0, rounding_mode, saturation_mode);
 
     switch (to_width) {
       case 16:
@@ -1867,23 +1918,28 @@ ptx_reg_t u2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
       case 32:
         switch (rounding_mode) {
           case RZ_OPTION:
-            y.f32 = cuda_math::__uint2float_rz(y.u32);
+            fprintf(fp, "_u2f_f%u_u%u_rz", to_width, from_width);
+            // y.f32 = cuda_math::__uint2float_rz(y.u32);
             break;
           case RN_OPTION:
-            y.f32 = cuda_math::__uint2float_rn(y.u32);
+            fprintf(fp, "_u2f_f%u_u%u_rn", to_width, from_width);
+            // y.f32 = cuda_math::__uint2float_rn(y.u32);
             break;
           case RM_OPTION:
-            y.f32 = cuda_math::__uint2float_rd(y.u32);
+            fprintf(fp, "_u2f_f%u_u%u_rm", to_width, from_width);
+            // y.f32 = cuda_math::__uint2float_rd(y.u32);
             break;
           case RP_OPTION:
-            y.f32 = cuda_math::__uint2float_ru(y.u32);
+            fprintf(fp, "_u2f_f%u_u%u_rp", to_width, from_width);
+            // y.f32 = cuda_math::__uint2float_ru(y.u32);
             break;
           default:
             break;
         }
         break;
       case 64:
-        y.f64 = y.u32;
+        fprintf(fp, "_u2f_f%u_u%u", to_width, from_width);
+        // y.f64 = y.u32;
         break;  // no rounding needed
       default:
         assert(0);
@@ -1897,23 +1953,28 @@ ptx_reg_t u2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
       case 32:
         switch (rounding_mode) {
           case RZ_OPTION:
-            y.f32 = cuda_math::__ull2float_rn(y.u64);
+            fprintf(fp, "_u2f_f%u_u%u_rz", to_width, from_width);
+            // y.f32 = cuda_math::__ull2float_rn(y.u64);
             break;
           case RN_OPTION:
-            y.f32 = cuda_math::__ull2float_rn(y.u64);
+            fprintf(fp, "_u2f_f%u_u%u_rn", to_width, from_width);
+            // y.f32 = cuda_math::__ull2float_rn(y.u64);
             break;
           case RM_OPTION:
-            y.f32 = cuda_math::__ull2float_rn(y.u64);
+            fprintf(fp, "_u2f_f%u_u%u_rm", to_width, from_width);
+            // y.f32 = cuda_math::__ull2float_rn(y.u64);
             break;
           case RP_OPTION:
-            y.f32 = cuda_math::__ull2float_rn(y.u64);
+            fprintf(fp, "_u2f_f%u_u%u_rp", to_width, from_width);
+            // y.f32 = cuda_math::__ull2float_rn(y.u64);
             break;
           default:
             break;
         }
         break;
       case 64:
-        y.f64 = y.u64;
+        fprintf(fp, "_u2f_f%u_u%u", to_width, from_width);
+        // y.f64 = y.u64;
         break;  // no internal implementation found
       default:
         assert(0);
@@ -1922,87 +1983,106 @@ ptx_reg_t u2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
   }
 
   // saturating an integer to 1 or 0?
-  return y;
+  // return y;
 }
 
-ptx_reg_t f2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-              int rounding_mode, int saturation_mode) {
-  ptx_reg_t y;
+void f2f(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+              int rounding_mode, int saturation_mode, FILE *fp) {
+  // ptx_reg_t y;
   if (from_width == 16) {
-    half_float::detail::uint16 val = x.u16;
-    y.f32 = half_float::detail::half2float<float>(val);
+    // half_float::detail::uint16 val = x.u16;
+    // y.f32 = half_float::detail::half2float<float>(val);
+    fprintf(fp, "_f2f_f32_f16");
   } else {
     switch (rounding_mode) {
       case RZI_OPTION:
-        y.f32 = truncf(x.f32);
+       //  y.f32 = truncf(x.f32);
+        fprintf(fp, "_f2f_f32_f32_rzi");
         break;
       case RNI_OPTION:
-        y.f32 = nearbyintf(x.f32);
+        fprintf(fp, "_f2f_f32_f32_rni");
+        // y.f32 = nearbyintf(x.f32);
         break;
       case RMI_OPTION:
+        fprintf(fp, "_f2f_f32_f32_rmi");
+        /*
         if ((x.u32 & 0x7f800000) == 0) {
           y.u32 = x.u32 & 0x80000000;  // round denorm. FP to 0, keeping sign
         } else {
           y.f32 = floorf(x.f32);
-        }
+        }*/
         break;
       case RPI_OPTION:
+        fprintf(fp, "_f2f_f32_f32_rpi");
+        /*
         if ((x.u32 & 0x7f800000) == 0) {
           y.u32 = x.u32 & 0x80000000;  // round denorm. FP to 0, keeping sign
         } else {
           y.f32 = ceilf(x.f32);
-        }
+        }*/
         break;
       default:
+        fprintf(fp, "_f2f_f32_f32");
+        /*
         if ((x.u32 & 0x7f800000) == 0) {
           y.u32 = x.u32 & 0x80000000;  // round denorm. FP to 0, keeping sign
         } else {
           y.f32 = x.f32;
         }
+        */
         break;
     }
+    /*
     if (isnanf(y.f32))
     {
       y.u32 = 0x7fffffff;
     } else if (saturation_mode) {
       y.f32 = cuda_math::__saturatef(y.f32);
     }
+    */
   }
 
-  return y;
+  // return y;
 }
 
-ptx_reg_t d2d(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
-              int rounding_mode, int saturation_mode) {
-  ptx_reg_t y;
+void d2d(unsigned from_type, unsigned from_width, unsigned to_width, int to_sign,
+              int rounding_mode, int saturation_mode, FILE *fp) {
+  // ptx_reg_t y;
   switch (rounding_mode) {
     case RZI_OPTION:
-      y.f64 = trunc(x.f64);
+      fprintf(fp, "_d2d_f64_f64_rzi");
+      // y.f64 = trunc(x.f64);
       break;
     case RNI_OPTION:
-      y.f64 = nearbyint(x.f64);
+      fprintf(fp, "_d2d_f64_f64_rni");
+      // y.f64 = nearbyint(x.f64);
       break;
     case RMI_OPTION:
-      y.f64 = floor(x.f64);
+      fprintf(fp, "_d2d_f64_f64_rmi");
+      // y.f64 = floor(x.f64);
       break;
     case RPI_OPTION:
-      y.f64 = ceil(x.f64);
+      fprintf(fp, "_d2d_f64_f64_rpi");
+      // y.f64 = ceil(x.f64);
       break;
     default:
-      y.f64 = x.f64;
+      fprintf(fp, "_d2d_f64_f64");
+      // y.f64 = x.f64;
       break;
   }
+  /*
   if (std::isnan(y.f64)) {
     y.u64 = 0xfff8000000000000ull;
   } else if (saturation_mode) {
     y.f64 = cuda_math::__saturatef(y.f64);
   }
-  return y;
+  */
+  // return y;
 }
 
-ptx_reg_t (*g_cvt_fn[11][11])(ptx_reg_t x, unsigned from_width,
+void (*g_cvt_print_coasm_fn[11][11])(unsigned from_type, unsigned from_width,
                               unsigned to_width, int to_sign, int rounding_mode,
-                              int saturation_mode) = {
+                              int saturation_mode, FILE *fp) = {
     {NULL, sext, sext, sext, NULL, sext, sext, sext, s2f, s2f, s2f},
     {chop, NULL, sext, sext, chop, NULL, sext, sext, s2f, s2f, s2f},
     {chop, sexd, NULL, sext, chop, chop, NULL, sext, s2f, s2f, s2f},
@@ -2015,6 +2095,7 @@ ptx_reg_t (*g_cvt_fn[11][11])(ptx_reg_t x, unsigned from_width,
     {f2x, f2x, f2x, f2x, f2x, f2x, f2x, f2x, f2x, f2f, f2x},
     {d2x, d2x, d2x, d2x, d2x, d2x, d2x, d2x, d2x, d2x, d2d}};
 
+#if 0
 void ptx_round(ptx_reg_t &data, int rounding_mode, int type) {
   if (rounding_mode == RN_OPTION) {
     return;
@@ -2186,8 +2267,9 @@ void ptx_saturate(ptx_reg_t &data, int saturation_mode, int type) {
       break;
   }
 }
+#endif
 
-void cvt_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
+void cvt_impl_coasm(const ptx_instruction *pI, FILE *fp) {
   const operand_info &dst = pI->dst();
   const operand_info &src1 = pI->src1();
   unsigned to_type = pI->get_type();
@@ -2204,54 +2286,27 @@ void cvt_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
       type_info_key::type_decode(from_type, from_width, from_sign);
   unsigned dst_fmt = type_info_key::type_decode(to_type, to_width, to_sign);
 
-  ptx_reg_t data = thread->get_operand_value(src1, dst, from_type, thread, 1);
+  fprintf(fp, "v");
+  // ptx_reg_t data = thread->get_operand_value(src1, dst, from_type, thread, 1);
+  if (g_cvt_print_coasm_fn[src_fmt][dst_fmt] != NULL) {
+    g_cvt_print_coasm_fn[src_fmt][dst_fmt](from_type, from_width, to_width, to_sign, rounding_mode, saturation_mode, fp);
+    // ptx_reg_t result = g_cvt_fn[src_fmt][dst_fmt](
+    //    data, from_width, to_width, to_sign, rounding_mode, saturation_mode);
+    // data = result;
+  }
 
+  fprintf(fp, "\t"); print_dst(dst, fp);
+  fprintf(fp, "\t,");
   if (pI->is_neg()) {
-    switch (from_type) {
-      // Default to f32 for now, need to add support for others
-      case S8_TYPE:
-      case U8_TYPE:
-      case B8_TYPE:
-        data.s8 = -data.s8;
-        break;
-      case S16_TYPE:
-      case U16_TYPE:
-      case B16_TYPE:
-        data.s16 = -data.s16;
-        break;
-      case S32_TYPE:
-      case U32_TYPE:
-      case B32_TYPE:
-        data.s32 = -data.s32;
-        break;
-      case S64_TYPE:
-      case U64_TYPE:
-      case B64_TYPE:
-        data.s64 = -data.s64;
-        break;
-      case F16_TYPE:
-        data.f16 = -data.f16;
-        break;
-      case F32_TYPE:
-        data.f32 = -data.f32;
-        break;
-      case F64_TYPE:
-      case FF64_TYPE:
-        data.f64 = -data.f64;
-        break;
-      default:
-        assert(0);
-    }
+      fprintf(fp, "-");
   }
+  print_src(src1, fp);
 
-  if (g_cvt_fn[src_fmt][dst_fmt] != NULL) {
-    ptx_reg_t result = g_cvt_fn[src_fmt][dst_fmt](
-        data, from_width, to_width, to_sign, rounding_mode, saturation_mode);
-    data = result;
-  }
 
-  thread->set_operand_value(dst, data, to_type, thread, pI);
+  // thread->set_operand_value(dst, data, to_type, thread, pI);
 }
+
+#if 0
 
 void cvta_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
   ptx_reg_t data;
@@ -3513,13 +3568,13 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
     case S16_TYPE:
       // t.s32 = ((int)a.s16) * ((int)b.s16);
       if (pI->is_wide())
-        fprintf(fp, "t_mul_s32_s16");
+        fprintf(fp, "v_mul_s32_s16");
         // d.s32 = t.s32;
       else if (pI->is_hi())
-        fprintf(fp, "t_mulhi_s16_s16");
+        fprintf(fp, "v_mulhi_s16_s16");
         // d.s16 = (t.s32 >> 16);
       else if (pI->is_lo())
-        fprintf(fp, "t_mullo_s16_s16");
+        fprintf(fp, "v_mullo_s16_s16");
         // d.s16 = t.s16;
       else
         assert(0);
@@ -3527,13 +3582,13 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
     case S32_TYPE:
       // t.s64 = ((long long)a.s32) * ((long long)b.s32);
       if (pI->is_wide())
-        fprintf(fp, "t_mul_s64_s32");
+        fprintf(fp, "v_mul_s64_s32");
         // d.s64 = t.s64;
       else if (pI->is_hi())
-        fprintf(fp, "t_mulhi_s32_s32");
+        fprintf(fp, "v_mulhi_s32_s32");
         // d.s32 = (t.s64 >> 32);
       else if (pI->is_lo())
-        fprintf(fp, "t_mullo_s32_s32");
+        fprintf(fp, "v_mullo_s32_s32");
         // d.s32 = t.s32;
       else
         assert(0);
@@ -3543,7 +3598,7 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       assert(!pI->is_wide());
       assert(!pI->is_hi());
       if (pI->is_lo())
-        fprintf(fp, "t_mullo_s64_s64");
+        fprintf(fp, "v_mullo_s64_s64");
         // d.s64 = t.s64;
       else
         assert(0);
@@ -3551,13 +3606,13 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
     case U16_TYPE:
       // t.u32 = ((unsigned)a.u16) * ((unsigned)b.u16);
       if (pI->is_wide())
-        fprintf(fp, "t_mul_u32_u16");
+        fprintf(fp, "v_mul_u32_u16");
         // d.u32 = t.u32;
       else if (pI->is_lo())
-        fprintf(fp, "t_mullo_u16_u16");
+        fprintf(fp, "v_mullo_u16_u16");
         // d.u16 = t.u16;
       else if (pI->is_hi())
-        fprintf(fp, "t_mulhi_u16_u16");
+        fprintf(fp, "v_mulhi_u16_u16");
         // d.u16 = (t.u32 >> 16);
       else
         assert(0);
@@ -3565,13 +3620,13 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
     case U32_TYPE:
       // t.u64 = ((unsigned long long)a.u32) * ((unsigned long long)b.u32);
       if (pI->is_wide())
-        fprintf(fp, "t_mul_u64_u32");
+        fprintf(fp, "v_mul_u64_u32");
         // d.u64 = t.u64;
       else if (pI->is_lo())
-        fprintf(fp, "t_mullo_u32_u32");
+        fprintf(fp, "v_mullo_u32_u32");
         // d.u32 = t.u32;
       else if (pI->is_hi())
-        fprintf(fp, "t_mulhi_u32_u32");
+        fprintf(fp, "v_mulhi_u32_u32");
         // d.u32 = (t.u64 >> 32);
       else
         assert(0);
@@ -3581,7 +3636,7 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       assert(!pI->is_wide());
       assert(!pI->is_hi());
       if (pI->is_lo())
-        fprintf(fp, "t_mullo_u64_u64");
+        fprintf(fp, "v_mullo_u64_u64");
         // d.u64 = t.u64;
       else
         assert(0);
@@ -3592,10 +3647,10 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       // int orig_rm = fegetround();
       switch (rounding_mode) {
         case RN_OPTION:
-          fprintf(fp, "t_mul_f16_f16_rn");
+          fprintf(fp, "v_mul_f16_f16_rn");
           break;
         case RZ_OPTION:
-          fprintf(fp, "t_mul_f16_f16_rz");
+          fprintf(fp, "v_mul_f16_f16_rz");
           // fesetround(FE_TOWARDZERO);
           break;
         default:
@@ -3619,10 +3674,10 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       // int orig_rm = fegetround();
       switch (rounding_mode) {
         case RN_OPTION:
-          fprintf(fp, "t_mul_f32_f32_rn");
+          fprintf(fp, "v_mul_f32_f32_rn");
           break;
         case RZ_OPTION:
-          fprintf(fp, "t_mul_f32_f32_rz");
+          fprintf(fp, "v_mul_f32_f32_rz");
           // fesetround(FE_TOWARDZERO);
           break;
         default:
@@ -3631,7 +3686,7 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       }
 
       // d.f32 = a.f32 * b.f32;
-      fprintf(fp, "t_mul_f32_f32");
+      fprintf(fp, "v_mul_f32_f32");
 
       if (pI->saturation_mode()) {
         fprintf(fp, "_sat");
@@ -3648,10 +3703,10 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       // int orig_rm = fegetround();
       switch (rounding_mode) {
         case RN_OPTION:
-          fprintf(fp, "t_mul_f64_f64_rn");
+          fprintf(fp, "v_mul_f64_f64_rn");
           break;
         case RZ_OPTION:
-          fprintf(fp, "t_mul_f64_f64_rz");
+          fprintf(fp, "v_mul_f64_f64_rz");
           // fesetround(FE_TOWARDZERO);
           break;
         default:
@@ -3674,10 +3729,9 @@ void mul_impl_coasm(const ptx_instruction *pI, FILE *fp) {
       break;
   }
 
-  fprintf(fp, "\t,");
-  print_dst(dst, fp); fprintf(fp, "\t,");
-  print_src(src1, fp);fprintf(fp, "\t,");
-  print_src(src2, fp);
+  fprintf(fp, "\t"); print_dst(dst, fp);
+  fprintf(fp, "\t,"); print_src(src1, fp);
+  fprintf(fp, "\t,"); print_src(src2, fp);
   // thread->set_operand_value(dst, d, i_type, thread, pI);
 }
 #if 0
@@ -3764,27 +3818,32 @@ void norn_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
 
   thread->set_operand_value(dst, data, i_type, thread, pI);
 }
+#endif
 
-void not_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
+void not_impl_coasm(const ptx_instruction *pI, FILE *fp) {
   ptx_reg_t a, b, d;
   const operand_info &dst = pI->dst();
   const operand_info &src1 = pI->src1();
 
   unsigned i_type = pI->get_type();
-  a = thread->get_operand_value(src1, dst, i_type, thread, 1);
+  // a = thread->get_operand_value(src1, dst, i_type, thread, 1);
 
   switch (i_type) {
     case PRED_TYPE:
-      d.pred = (~(a.pred) & 0x000F);
+      fprintf(fp, "v_not_pred\tp%u,\tp%u", dst.reg_num(), src1.reg_num());
+      // d.pred = (~(a.pred) & 0x000F);
       break;
     case B16_TYPE:
-      d.u16 = ~a.u16;
+      fprintf(fp, "v_not_u16\tv%u,\tv%u", dst.reg_num(), src1.reg_num());
+      // d.u16 = ~a.u16;
       break;
     case B32_TYPE:
-      d.u32 = ~a.u32;
+      fprintf(fp, "v_not_u32\tv%u,\tv%u", dst.reg_num(), src1.reg_num());
+      // d.u32 = ~a.u32;
       break;
     case B64_TYPE:
-      d.u64 = ~a.u64;
+      fprintf(fp, "v_not_u64\tv%u,\tv%u", dst.reg_num(), src1.reg_num());
+      // d.u64 = ~a.u64;
       break;
     default:
       printf("Execution error: type mismatch with instruction\n");
@@ -3792,8 +3851,10 @@ void not_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
       break;
   }
 
-  thread->set_operand_value(dst, d, i_type, thread, pI);
+  // thread->set_operand_value(dst, d, i_type, thread, pI);
 }
+
+#if 0
 
 void or_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
   ptx_reg_t src1_data, src2_data, data;
@@ -4606,7 +4667,7 @@ void setp_impl_coasm(const ptx_instruction *pI, FILE *fp) {
   // a = thread->get_operand_value(src1, dst, type, thread, 1);
   // b = thread->get_operand_value(src2, dst, type, thread, 1);
 
-  fprintf(fp, "s_setp ");
+  fprintf(fp, "s_setp");
   t = CmpOp(type, a, b, cmpop, fp);
 
   ptx_reg_t data;
@@ -4618,12 +4679,13 @@ void setp_impl_coasm(const ptx_instruction *pI, FILE *fp) {
        0);  // inverting predicate since ptxplus uses "1" for a set zero flag
        */
 
-  fprintf(fp, "p%u, %s", dst.reg_num(), pI->get_pred().name().c_str());
+  fprintf(fp, "\tp%u", dst.reg_num()); // , pI->get_pred().name().c_str());
   fprintf(fp, "\t,"); print_src(src1, fp);
   fprintf(fp, "\t,"); print_src(src2, fp);
   // thread->set_operand_value(dst, data, PRED_TYPE, thread, pI);
 }
-void set_impl_coasm(const ptx_instruction *pI, FILE *thread) {
+
+void set_impl_coasm(const ptx_instruction *pI, FILE *fp) {
   ptx_reg_t a, b;
 
   int t = 0;
@@ -4639,8 +4701,14 @@ void set_impl_coasm(const ptx_instruction *pI, FILE *thread) {
 
   // a = thread->get_operand_value(src1, dst, src_type, thread, 1);
   // b = thread->get_operand_value(src2, dst, src_type, thread, 1);
+  fprintf(fp, "s_set");
 
+  t = CmpOp(src_type, a, b, cmpop, fp);
+  fprintf(fp, "\tp%u", dst.reg_num());
+  fprintf(fp, "\t,"); print_src(src1, fp);
+  fprintf(fp, "\t,"); print_src(src2, fp);
   // Take abs of first operand if needed
+  /*
   if (pI->is_abs()) {
     switch (src_type) {
       case S16_TYPE:
@@ -4675,8 +4743,6 @@ void set_impl_coasm(const ptx_instruction *pI, FILE *thread) {
     }
   }
 
-  t = CmpOp(src_type, a, b, cmpop);
-
   ptx_reg_t data;
   if (isFloat(pI->get_type())) {
     data.f32 = (t != 0) ? 1.0f : 0.0f;
@@ -4685,6 +4751,7 @@ void set_impl_coasm(const ptx_instruction *pI, FILE *thread) {
   }
 
   thread->set_operand_value(dst, data, pI->get_type(), thread, pI);
+  */
 }
 
 #if 0
@@ -4770,38 +4837,53 @@ void shfl_impl_coasm(const ptx_instruction *pI, core_t *core, warp_inst_t inst) 
     warp_info->reset_done_threads();
   }
 }
+#endif
 
-void shl_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
+void shl_impl_coasm(const ptx_instruction *pI, FILE *fp) {
   ptx_reg_t a, b, d;
   const operand_info &dst = pI->dst();
   const operand_info &src1 = pI->src1();
   const operand_info &src2 = pI->src2();
 
   unsigned i_type = pI->get_type();
-  a = thread->get_operand_value(src1, dst, i_type, thread, 1);
-  b = thread->get_operand_value(src2, dst, i_type, thread, 1);
+  // a = thread->get_operand_value(src1, dst, i_type, thread, 1);
+  // b = thread->get_operand_value(src2, dst, i_type, thread, 1);
+  fprintf(fp, "v_shl");
 
   switch (i_type) {
     case B16_TYPE:
     case U16_TYPE:
-      if (b.u16 >= 16)
+      fprintf(fp, "_u16\t");
+      print_dst(dst, fp, 1); fprintf(fp, "\t");
+      print_src(src1, fp, 1); fprintf(fp, "\t,");
+      print_src(src2, fp, 1);
+      /*if (b.u16 >= 16)
         d.u16 = 0;
       else
         d.u16 = (unsigned short)((a.u16 << b.u16) & 0xFFFF);
+        */
       break;
     case B32_TYPE:
     case U32_TYPE:
-      if (b.u32 >= 32)
+      fprintf(fp, "_u32\t");
+      print_dst(dst, fp, 1); fprintf(fp, "\t");
+      print_src(src1, fp, 1); fprintf(fp, "\t,");
+      print_src(src2, fp, 1);
+      /*if (b.u32 >= 32)
         d.u32 = 0;
       else
-        d.u32 = (unsigned)((a.u32 << b.u32) & 0xFFFFFFFF);
+        d.u32 = (unsigned)((a.u32 << b.u32) & 0xFFFFFFFF);*/
       break;
     case B64_TYPE:
     case U64_TYPE:
-      if (b.u32 >= 64)
+      fprintf(fp, "_u64\t");
+      print_dst(dst, fp, 2); fprintf(fp, "\t");
+      print_src(src1, fp, 2); fprintf(fp, "\t,");
+      print_src(src2, fp, 2);
+      /*if (b.u32 >= 64)
         d.u64 = 0;
       else
-        d.u64 = (a.u64 << b.u64);
+        d.u64 = (a.u64 << b.u64);*/
       break;
     default:
       printf("Execution error: type mismatch with instruction\n");
@@ -4809,9 +4891,10 @@ void shl_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
       break;
   }
 
-  thread->set_operand_value(dst, d, i_type, thread, pI);
+  // thread->set_operand_value(dst, d, i_type, thread, pI);
 }
 
+#if 0
 void shr_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
   ptx_reg_t a, b, d;
   const operand_info &dst = pI->dst();
@@ -5086,57 +5169,69 @@ void ssy_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
   // TODO: add implementation
 }
 
-void st_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
+#endif
+
+void st_impl_coasm(const ptx_instruction *pI, FILE *fp) {
   const operand_info &dst = pI->dst();
   const operand_info &src1 = pI->src1();  // may be scalar or vector of regs
   unsigned type = pI->get_type();
-  ptx_reg_t addr_reg = thread->get_operand_value(dst, dst, type, thread, 1);
-  ptx_reg_t data;
+  // ptx_reg_t addr_reg = thread->get_operand_value(dst, dst, type, thread, 1);
+  // ptx_reg_t data;
   memory_space_t space = pI->get_space();
   unsigned vector_spec = pI->get_vector();
 
   memory_space *mem = NULL;
-  addr_t addr = addr_reg.u32;
+  // addr_t addr = addr_reg.u32;
 
-  decode_space(space, thread, dst, mem, addr);
+  // decode_space(space, thread, dst, mem, addr);
 
   size_t size;
   int t;
   type_info_key::type_decode(type, size, t);
+  fprintf(fp, "global_store");
 
   if (!vector_spec) {
-    data = thread->get_operand_value(src1, dst, type, thread, 1);
-    mem->write(addr, size / 8, &data.s64, thread, pI);
+    fprintf(fp, "\tv%u", src1.reg_num());
+    fprintf(fp, ",\tv%u", dst.reg_num());
+    // data = thread->get_operand_value(src1, dst, type, thread, 1);
+    // mem->write(addr, size / 8, &data.s64, thread, pI);
   } else {
     if (vector_spec == V2_TYPE) {
-      ptx_reg_t *ptx_regs = new ptx_reg_t[2];
-      thread->get_vector_operand_values(src1, ptx_regs, 2);
-      mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
-      mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
-      delete[] ptx_regs;
+      print_src(src1, fp, 2); fprintf(fp, "\t,");
+      print_src(dst, fp, 1);
+      // ptx_reg_t *ptx_regs = new ptx_reg_t[2];
+      // thread->get_vector_operand_values(src1, ptx_regs, 2);
+      // mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
+      // mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
+      // delete[] ptx_regs;
     }
     if (vector_spec == V3_TYPE) {
-      ptx_reg_t *ptx_regs = new ptx_reg_t[3];
-      thread->get_vector_operand_values(src1, ptx_regs, 3);
-      mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
-      mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
-      mem->write(addr + 2 * size / 8, size / 8, &ptx_regs[2].s64, thread, pI);
-      delete[] ptx_regs;
+      print_src(src1, fp, 3); fprintf(fp, "\t,");
+      print_src(dst, fp, 1);
+      // ptx_reg_t *ptx_regs = new ptx_reg_t[3];
+      // thread->get_vector_operand_values(src1, ptx_regs, 3);
+      // mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
+      // mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
+      // mem->write(addr + 2 * size / 8, size / 8, &ptx_regs[2].s64, thread, pI);
+      // delete[] ptx_regs;
     }
     if (vector_spec == V4_TYPE) {
-      ptx_reg_t *ptx_regs = new ptx_reg_t[4];
-      thread->get_vector_operand_values(src1, ptx_regs, 4);
-      mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
-      mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
-      mem->write(addr + 2 * size / 8, size / 8, &ptx_regs[2].s64, thread, pI);
-      mem->write(addr + 3 * size / 8, size / 8, &ptx_regs[3].s64, thread, pI);
-      delete[] ptx_regs;
+      print_src(src1, fp, 4); fprintf(fp, "\t,");
+      print_src(dst, fp, 1);
+      // ptx_reg_t *ptx_regs = new ptx_reg_t[4];
+      // thread->get_vector_operand_values(src1, ptx_regs, 4);
+      // mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
+      // mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
+      // mem->write(addr + 2 * size / 8, size / 8, &ptx_regs[2].s64, thread, pI);
+      // mem->write(addr + 3 * size / 8, size / 8, &ptx_regs[3].s64, thread, pI);
+      // delete[] ptx_regs;
     }
   }
-  thread->m_last_effective_address = addr;
-  thread->m_last_memory_space = space;
+  // thread->m_last_effective_address = addr;
+  // thread->m_last_memory_space = space;
 }
 
+#if 0
 void sub_impl_coasm(const ptx_instruction *pI, ptx_thread_info *thread) {
   ptx_reg_t data;
   int overflow = 0;
